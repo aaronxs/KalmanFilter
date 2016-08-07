@@ -129,11 +129,12 @@ log_like <- function(sig0, sigV, sigW, u){
     yt <- as.matrix(gety(t, season)) # y_t, point differentials on games in t-th game day
     yhat_t <- Ct%*%x_pred(t, season) + Dt%*%u # 2.3.1 of paper
     Ohat_t <- Ct%*%sigma_pred(t, season)%*%t(Ct) + Nt # 2.3.1 of paper
-    a <- (-1/2)*log(det(Ohat_t))
-    b <- (-1/2)*(t(yt - yhat_t)%*%solve(Ohat_t)%*%(yt - yhat_t))
-    logLF_t <- a + b
+    
+    # log likelihood of y_t given y_t-1, equantion 21 of the paper
+    logLF_t <- -(1/2)*log(det(Ohat_t)) - (1/2)*(t(yt - yhat_t)%*%solve(Ohat_t)%*%(yt - yhat_t))
     logLF <- logLF + logLF_t
   }
   return(-logLF)
 }
+
 
