@@ -1,0 +1,64 @@
+library(nlme)
+library(retrosheet)
+
+ALfinal <- read.table('2009AL.txt', header=T)
+NLfinal <- read.table('2009NL.txt', header=T)
+ALfinal$Lg <- "AL"
+NLfinal$Lg <- "NL"
+final <- rbind(ALfinal, NLfinal)
+# sort team according to wins
+final <- final[order(final$W, decreasing=TRUE), ]
+# assign initial rank centered at 0 with random errors
+set.seed(20160806)
+final$str <- 14.5:-14.5 + rnorm(length(final$Tm), 0, 3)
+# sort team according to team name
+ALfinal <- final[final$Lg == 'AL', ]
+NLfinal <- final[final$Lg == 'NL', ]
+ALfinal <- ALfinal[order(ALfinal$Tm), ]
+NLfinal <- NLfinal[order(NLfinal$Tm), ]
+ind <- grep("MIA", NLfinal$Tm)
+NLfinal[length(NLfinal$Tm) + 1, ] <- NLfinal[ind, ]
+NLfinal <- NLfinal[-ind, ]
+# x-hat0
+x0 <- rbind(ALfinal, NLfinal)$str
+n <- length(final$Tm)
+# sigma-hat0
+sigma0 <- sd(x0)
+Sig0 <- sigma0*diag(length(teamIds))
+sigV <- 1
+M <- sigV*diag(n)
+sigW <- 1
+
+
+
+# C matrix
+C1 <- as.matrix(matchSeasons$S2010[matchSeasons$S2010$Date == "2010-04-05", ][, -1:-2])
+# D Matrix
+D1 <- covSeasons$S2010[covSeasons$S2010$Date == "2010-04-05", ][,c(3,5)]
+# y
+y1 <- scoreSeasons$S2010[scoreSeasons$S2010$Date == "2010-04-05", ][,3]
+
+# equation 9 of paper
+#Predictive cov matrix, Sigma_t+1|t
+sigma_pred <- function(t){
+  if(t > 1){
+    sigma_post(t - 1) + M
+  }
+  else{
+    Sig0
+  }
+}
+
+# equation 10 of paper
+# Posterior cov matrix, Sigma_t+1|t+1 
+sigma_post <- function(t){
+  if(t > 1){
+    m = length(getByTind(scoreSeasons$S2010, t- 1)[,1])
+    N = sigW*diag(m)
+    sigma_pred(t - 1) - sigma_pred(t - 1)%*%t(getC(t - 1))%*%solve(as.matrix(getC(t - 1))%*%sigma_pred(t - 1)%*%t(getC(t - 1)) + N)%*%as.matrix(getC(t - 1))%*%sigma_pred(t - 1)
+  }
+  else{
+    Sig0
+  }
+}
+
