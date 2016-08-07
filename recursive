@@ -38,27 +38,77 @@ D1 <- covSeasons$S2010[covSeasons$S2010$Date == "2010-04-05", ][,c(3,5)]
 # y
 y1 <- scoreSeasons$S2010[scoreSeasons$S2010$Date == "2010-04-05", ][,3]
 
+# recursive function to calculate sigma
 # equation 9 of paper
 #Predictive cov matrix, Sigma_t+1|t
-sigma_pred <- function(t){
-  if(t > 1){
-    sigma_post(t - 1) + M
-  }
-  else{
-    Sig0
-  }
+sigma_pred <- function(t, season){
+  match <- 1
+  sigma_post(t - 1, season)
 }
 
 # equation 10 of paper
 # Posterior cov matrix, Sigma_t+1|t+1 
-sigma_post <- function(t){
-  if(t > 1){
-    m = length(getByTind(scoreSeasons$S2010, t- 1)[,1])
-    N = sigW*diag(m)
-    sigma_pred(t - 1) - sigma_pred(t - 1)%*%t(getC(t - 1))%*%solve(as.matrix(getC(t - 1))%*%sigma_pred(t - 1)%*%t(getC(t - 1)) + N)%*%as.matrix(getC(t - 1))%*%sigma_pred(t - 1)
+sigma_post <- function(t, season){
+  if(t > 0){
+    Ct <- as.matrix(getC(t, season)) # C_t
+    mt <- nrow(Ct)  # m: number of games on day t
+    Nt <- sigW*diag(mt) # N: 
+    sprev <- sigma_pred(t, season)
+    return(sprev - 
+             sprev%*%t(Ct)%*%
+             solve(Ct%*%sprev%*%t(Ct) + Nt)%*%
+             Ct%*%sprev)
   }
   else{
-    Sig0
+    Sig0 + M
   }
 }
 
+## test ##
+# first game of 2010
+sigma_pred(1, 1) # Sig_pred_1|0 = Sig_pred_0|0 + M = Sig0 + M
+# second game of 2010
+sigma_pred(2, 1) # Sig_pred_2|1
+# third game of 2010
+sigma_pred(3, 1) # Sig_pred_3|2
+
+
+
+# recurssive function to calculate x
+# 2.2.4 (ii) of paper
+# prediction of system states
+x_pred <- function(t, season){
+  if(t > 1){
+    x_post(t - 1, season)
+  }
+  else{
+    x0
+  }
+}
+
+# equation 11 of paper
+# posterior estimate of system states
+x_post <- function(t, season){
+  if(t > 1){
+    Ct <- as.matrix(getC(t, season)) # C_t
+    Dt <- as.matrix(getD(t, season)) # D_t
+    mt <- nrow(Ct)  # m: number of games on day t
+    Nt <- sigW*diag(mt) # N: 
+    xprev <- x_post(t - 1, season) # X-hat_t-1 | t-1
+    sigpost <- sigma_post(t, season) # Sigma-hat_t | t
+    yt <- as.matrix(gety(t, season)) # y_t, point differentials on games in t-th game day
+    It <- matrix(rep(1, ncol(Dt)), ncol=1) # vector of all 1 in R^m
+    return(xprev + (1/sigW)*sigpost%*%t(Ct)%*%(yt - Ct%*%xprev - Dt%*%It))
+  }
+  else{
+    x0
+  }
+}
+
+## test ##
+# first game of 2010
+x_post(1, 1) # x_1|0 
+# second game of 2010
+x_post(2, 1) # x_2|1
+# third game of 2010
+x_post(3, 1) # x_3|2
