@@ -108,8 +108,8 @@ x_post <- function(t, season, u){
 
 ## test ##
 # first game of 2010
-x_post(1, 1) # x_1|0 
+x_post(1, 1, u) # x_1|0 
 # second game of 2010
-x_post(2, 1) # x_2|1
+x_post(2, 1, u) # x_2|1
 # third game of 2010
-x_post(3, 1) # x_3|2
+x_post(3, 1, u) # x_3|2
