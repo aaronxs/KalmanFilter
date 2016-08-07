@@ -86,9 +86,11 @@ x_pred <- function(t, season){
   }
 }
 
+u <- matrix(rep(1, 32), ncol=1)
 # equation 11 of paper
 # posterior estimate of system states
-x_post <- function(t, season){
+# u is the coeffcients of the covariates
+x_post <- function(t, season, u){
   if(t > 1){
     Ct <- as.matrix(getC(t, season)) # C_t
     Dt <- as.matrix(getD(t, season)) # D_t
@@ -97,8 +99,7 @@ x_post <- function(t, season){
     xprev <- x_post(t - 1, season) # X-hat_t-1 | t-1
     sigpost <- sigma_post(t, season) # Sigma-hat_t | t
     yt <- as.matrix(gety(t, season)) # y_t, point differentials on games in t-th game day
-    It <- matrix(rep(1, ncol(Dt)), ncol=1) # vector of all 1 in R^m
-    return(xprev + (1/sigW)*sigpost%*%t(Ct)%*%(yt - Ct%*%xprev - Dt%*%It))
+    return(xprev + (1/sigW)*sigpost%*%t(Ct)%*%(yt - Ct%*%xprev - Dt%*%u))
   }
   else{
     x0
