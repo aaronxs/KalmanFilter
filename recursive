@@ -117,7 +117,7 @@ x_post(3, 1, pars) # x_3|2
 
 
 
-# -1 times the log likelihood function (equation 21 of the paper)
+# -1 times the whole log likelihood function 
 # input is a 1 x 35 vector
 log_like <- function(param){
   # Sig0 <- param[1]*diag(30) # Sigma_0
@@ -127,7 +127,7 @@ log_like <- function(param){
   season = 1 # 2010 season
   Tot <- max(matchSeasons[[season]]$Tind) # total number of game days
   logLF <- 0
-  for(t in 1:Tot){
+  for(t in 1:50){
     Ct <- as.matrix(getC(t, season)) # C_t
     Dt <- as.matrix(getD(t, season)) # D_t
     mt <- nrow(Ct)  # m: number of games on day t
@@ -143,8 +143,37 @@ log_like <- function(param){
   return(-logLF)
 }
 
+# calculating a single t log likelhood 
+log_like_t <- function(t, param){
+  # Sig0 <- param[1]*diag(30) # Sigma_0
+  # sigV <- param[2] # sigma_V
+  sigW <- param[3] # sigma_W
+  u <- param[4:35] # ut
+  season = 1 # 2010 season
+  Ct <- as.matrix(getC(t, season)) # C_t
+  Dt <- as.matrix(getD(t, season)) # D_t
+  mt <- nrow(Ct)  # m: number of games on day t
+  Nt <- sigW*diag(mt) # N
+  yt <- as.matrix(gety(t, season)) # y_t, point differentials on games in t-th game day
+  yhat_t <- Ct%*%x_pred(t, season, param) + Dt%*%u # 2.3.1 of paper
+  Ohat_t <- Ct%*%sigma_pred(t, season, param)%*%t(Ct) + Nt # 2.3.1 of paper
+  
+  # log likelihood of y_t given y_t-1, equantion 21 of the paper
+  logLF_t <- -(1/2)*log(det(Ohat_t)) - (1/2)*(t(yt - yhat_t)%*%solve(Ohat_t)%*%(yt - yhat_t))
+  return(-logLF_t)
+}
+
+# -1 times the whole log likelihood function, using sapply
+ttest <- function(param){
+  season = 1 # 2010 season
+  Tot <- max(matchSeasons[[season]]$Tind) # total number of game days
+  T <- 1:Tot
+  lfs <- sapply(T, log_like_t, param )
+  return(sum(lfs))
+}
+
 # test
 log_like(pars)
 
 # ML estimate of the parameters
-ml <- nlm(f=log_like, p=pars)
+ml <- nlm(f=ttest, p=pars)
