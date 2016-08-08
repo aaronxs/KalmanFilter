@@ -30,30 +30,28 @@ M <- sigV*diag(n)
 sigW <- 1
 
 
-
-# C matrix
-C1 <- as.matrix(matchSeasons$S2010[matchSeasons$S2010$Date == "2010-04-05", ][, -1:-2])
-# D Matrix
-D1 <- covSeasons$S2010[covSeasons$S2010$Date == "2010-04-05", ][,c(3,5)]
-# y
-y1 <- scoreSeasons$S2010[scoreSeasons$S2010$Date == "2010-04-05", ][,3]
+pars <- rep(1,35)
 
 # recursive function to calculate sigma
 # equation 9 of paper
 #Predictive cov matrix, Sigma_t+1|t
-sigma_pred <- function(t, season){
-  match <- 1
-  sigma_post(t - 1, season)
+sigma_pred <- function(t, season, param){
+  sigma_post(t - 1, season, param)
 }
 
 # equation 10 of paper
 # Posterior cov matrix, Sigma_t+1|t+1 
-sigma_post <- function(t, season){
+sigma_post <- function(t, season, param){
+  Sig0 <- param[1]*diag(30) # Sigma_0
+  sigV <- param[2] # sigma_V
+  sigW <- param[3] # sigma_W
+  # u <- param[4:35] # coefficients of covariates
+  M <- sigV*diag(30) # cov matrix of v
   if(t > 0){
     Ct <- as.matrix(getC(t, season)) # C_t
     mt <- nrow(Ct)  # m: number of games on day t
-    Nt <- sigW*diag(mt) # N: 
-    sprev <- sigma_pred(t, season)
+    Nt <- sigW*diag(mt) # cov matrix of w
+    sprev <- sigma_pred(t, season, param)
     return(sprev - 
              sprev%*%t(Ct)%*%
              solve(Ct%*%sprev%*%t(Ct) + Nt)%*%
@@ -64,40 +62,43 @@ sigma_post <- function(t, season){
   }
 }
 
+
+
+
 ## test ##
 # first game of 2010
-sigma_pred(1, 1) # Sig_pred_1|0 = Sig_pred_0|0 + M = Sig0 + M
+sigma_pred(1, 1, pars) # Sig_hat_1|0 = Sig_pred_0|0 + M = Sig0 + M
 # second game of 2010
-sigma_pred(2, 1) # Sig_pred_2|1
+sigma_pred(2, 1, pars) # Sig_hat_2|1
 # third game of 2010
-sigma_pred(3, 1) # Sig_pred_3|2
+sigma_pred(3, 1, pars) # Sig_hat_3|2
 
+sigma_post(3, 1, pars) # Sig_hat_3|3
 
 
 # recurssive function to calculate x
 # 2.2.4 (ii) of paper
 # prediction of system states
-x_pred <- function(t, season){
-  if(t > 1){
-    x_post(t - 1, season)
-  }
-  else{
-    x0
-  }
+x_pred <- function(t, season, param){
+    x_post(t - 1, season, param)
 }
-
 u <- matrix(rep(1, 32), ncol=1)
 # equation 11 of paper
 # posterior estimate of system states
 # u is the coeffcients of the covariates
-x_post <- function(t, season, u){
+x_post <- function(t, season, param){
   if(t > 1){
+    Sig0 <- param[1]*diag(30) # Sigma_0
+    sigV <- param[2] # sigma_V
+    sigW <- param[3] # sigma_W
+    u <- param[4:35] # ut
     Ct <- as.matrix(getC(t, season)) # C_t
     Dt <- as.matrix(getD(t, season)) # D_t
     mt <- nrow(Ct)  # m: number of games on day t
-    Nt <- sigW*diag(mt) # N: 
-    xprev <- x_post(t - 1, season) # X-hat_t-1 | t-1
-    sigpost <- sigma_post(t, season) # Sigma-hat_t | t
+    # Nt <- sigW*diag(mt) # cov matrix of w
+    # M <- sigV*diag(n) # cov matrix of v
+    xprev <- x_post(t - 1, season, param) # X-hat_t-1 | t-1
+    sigpost <- sigma_post(t, season, param) # Sigma-hat_t | t
     yt <- as.matrix(gety(t, season)) # y_t, point differentials on games in t-th game day
     return(xprev + (1/sigW)*sigpost%*%t(Ct)%*%(yt - Ct%*%xprev - Dt%*%u))
   }
@@ -108,18 +109,23 @@ x_post <- function(t, season, u){
 
 ## test ##
 # first game of 2010
-x_post(1, 1, u) # x_1|0 
+x_post(1, 1, pars) # x_1|0 
 # second game of 2010
-x_post(2, 1, u) # x_2|1
+x_post(2, 1, pars) # x_2|1
 # third game of 2010
-x_post(3, 1, u) # x_3|2
+x_post(3, 1, pars) # x_3|2
 
 
-# likelihood function 
-# equation 21 of the paper
-log_like <- function(sig0, sigV, sigW, u){
+
+# -1 times the log likelihood function (equation 21 of the paper)
+# input is a 1 x 35 vector
+log_like <- function(param){
+  # Sig0 <- param[1]*diag(30) # Sigma_0
+  # sigV <- param[2] # sigma_V
+  sigW <- param[3] # sigma_W
+  u <- param[4:35] # ut
   season = 1 # 2010 season
-  Tot <- length(matchSeasons[[season]]$Tind) # Number of game days
+  Tot <- max(matchSeasons[[season]]$Tind) # total number of game days
   logLF <- 0
   for(i in 1:Tot){
     Ct <- as.matrix(getC(t, season)) # C_t
@@ -127,8 +133,8 @@ log_like <- function(sig0, sigV, sigW, u){
     mt <- nrow(Ct)  # m: number of games on day t
     Nt <- sigW*diag(mt) # N
     yt <- as.matrix(gety(t, season)) # y_t, point differentials on games in t-th game day
-    yhat_t <- Ct%*%x_pred(t, season) + Dt%*%u # 2.3.1 of paper
-    Ohat_t <- Ct%*%sigma_pred(t, season)%*%t(Ct) + Nt # 2.3.1 of paper
+    yhat_t <- Ct%*%x_pred(t, season, param) + Dt%*%u # 2.3.1 of paper
+    Ohat_t <- Ct%*%sigma_pred(t, season, param)%*%t(Ct) + Nt # 2.3.1 of paper
     
     # log likelihood of y_t given y_t-1, equantion 21 of the paper
     logLF_t <- -(1/2)*log(det(Ohat_t)) - (1/2)*(t(yt - yhat_t)%*%solve(Ohat_t)%*%(yt - yhat_t))
@@ -137,4 +143,8 @@ log_like <- function(sig0, sigV, sigW, u){
   return(-logLF)
 }
 
+# test
+log_like(pars)
 
+# ML estimate of the parameters
+ml <- nlm(f=log_like, p=pars)
