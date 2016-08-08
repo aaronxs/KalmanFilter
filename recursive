@@ -127,7 +127,7 @@ log_like <- function(param){
   season = 1 # 2010 season
   Tot <- max(matchSeasons[[season]]$Tind) # total number of game days
   logLF <- 0
-  for(i in 1:Tot){
+  for(t in 1:Tot){
     Ct <- as.matrix(getC(t, season)) # C_t
     Dt <- as.matrix(getD(t, season)) # D_t
     mt <- nrow(Ct)  # m: number of games on day t
